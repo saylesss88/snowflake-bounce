@@ -98,6 +98,31 @@ impl Bouncer {
             self.change_color();
         }
     }
+    pub fn draw(&self, window: &Window) {
+        // Erase old position (overwrite with space)
+        window.mvaddstr(self.prev_y, self.prev_x, " ");
+
+        // Draw new position
+        window.attron(COLOR_PAIR(self.color as chtype));
+        window.mvaddstr(self.y, self.x, "❄");
+        window.attroff(COLOR_PAIR(self.color as chtype));
+
+        window.refresh(); // Actually display changes
+        napms(50); // ~20 FPS (50ms per frame)
+    }
+    pub fn resize(&mut self) {
+        let (lines, cols) = get_term_size();
+        self.max_y = lines as i32 - 1;
+        self.max_x = cols as i32 - 1;
+
+        // Reset position if we are now outside bounds
+        if self.x >= self.max_x {
+            self.x = self.max_x - 1;
+        }
+        if self.y >= self.max_y {
+            self.y = self.max_y - 1;
+        }
+    }
 }
 
 /// Get terminal dimensions safely
@@ -136,6 +161,10 @@ pub fn ncurses_init() -> Window {
 
     window.refresh(); // Apply all changes
     window
+}
+pub fn resize_window() {
+    endwin();
+    initscr();
 }
 
 /// Clean exit: restore terminal state
