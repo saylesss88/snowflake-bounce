@@ -1,5 +1,5 @@
 {
-  description = "rmatrix-snowfall: A NixOS-themed matrix snowfall screensaver";
+  description = "snowflake-bounce: A NixOS-themed bouncing snowflake screensaver";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
