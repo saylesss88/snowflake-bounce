@@ -23,15 +23,17 @@ where
 }
 
 pub struct Bouncer {
-    x: i32,      // Current X position
-    y: i32,      // Current Y position
-    prev_x: i32, // Previous X (for erasing)
-    prev_y: i32, // Previous Y (for erasing)
-    dx: i32,     // Velocity X (+1 or -1)
-    dy: i32,     // Velocity Y (+1 or -1)
-    color: i16,  // Current color (0-7)
-    max_x: i32,  // Right boundary
-    max_y: i32,  // Bottom boundary
+    x: i32,       // Current X position
+    y: i32,       // Current Y position
+    prev_x: i32,  // Previous X (for erasing)
+    prev_y: i32,  // Previous Y (for erasing)
+    dx: i32,      // Velocity X (+1 or -1)
+    dy: i32,      // Velocity Y (+1 or -1)
+    symbol: char, // Keypress
+    color: i16,   // Current color (0-7)
+    max_x: i32,   // Right boundary
+    max_y: i32,   // Bottom boundary
+    pub size: usize,
 }
 
 impl Bouncer {
@@ -49,10 +51,21 @@ impl Bouncer {
             prev_y: start_y,
             dx: if rng::<bool>() { 1 } else { -1 }, // Random direction
             dy: if rng::<bool>() { 1 } else { -1 },
+            symbol: '❄',
             color: COLOR_BLUE,
             max_x: max_x - 1,
             max_y: max_y - 1,
+            size: 1,
         }
+    }
+    // method to change color
+    pub fn cycle_color(&mut self) {
+        self.change_color();
+    }
+
+    //  method to toggle size
+    pub fn toggle_size(&mut self) {
+        self.size = if self.size == 1 { 3 } else { 1 };
     }
     fn change_color(&mut self) {
         let colors = [
@@ -99,17 +112,45 @@ impl Bouncer {
         }
     }
     pub fn draw(&self, window: &Window) {
-        // Erase old position (overwrite with space)
-        window.mvaddstr(self.prev_y, self.prev_x, " ");
+        // Draw based on size
+        if self.size == 1 {
+            // Single character
+            window.mvaddstr(self.prev_y, self.prev_x, " ");
+            window.attron(COLOR_PAIR(self.color as chtype));
+            window.mvaddstr(self.y, self.x, &self.symbol.to_string());
+            window.attroff(COLOR_PAIR(self.color as chtype));
+        } else {
+            // 3x3 block
+            let logo = ["  ❄  ", " ❄❄❄ ", "  ❄  "];
 
-        // Draw new position
-        window.attron(COLOR_PAIR(self.color as chtype));
-        window.mvaddstr(self.y, self.x, "❄");
-        window.attroff(COLOR_PAIR(self.color as chtype));
+            // Erase old
+            for i in 0..logo.len() {
+                window.mvaddstr(self.prev_y + i as i32, self.prev_x, "     ");
+            }
 
-        window.refresh(); // Actually display changes
-        napms(50); // ~20 FPS (50ms per frame)
+            // Draw new
+            window.attron(COLOR_PAIR(self.color as chtype));
+            for (i, line) in logo.iter().enumerate() {
+                window.mvaddstr(self.y + i as i32, self.x, line);
+            }
+            window.attroff(COLOR_PAIR(self.color as chtype));
+        }
+
+        window.refresh();
+        napms(50);
     }
+    // pub fn draw(&self, window: &Window) {
+    //     // Erase old position (overwrite with space)
+    //     window.mvaddstr(self.prev_y, self.prev_x, " ");
+
+    //     // Draw new position
+    //     window.attron(COLOR_PAIR(self.color as chtype));
+    //     window.mvaddstr(self.y, self.x, "❄");
+    //     window.attroff(COLOR_PAIR(self.color as chtype));
+
+    //     window.refresh(); // Actually display changes
+    //     napms(50); // ~20 FPS (50ms per frame)
+    // }
     pub fn resize(&mut self) {
         let (lines, cols) = get_term_size();
         self.max_y = lines as i32 - 1;

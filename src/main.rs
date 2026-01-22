@@ -45,8 +45,13 @@ fn main() {
         }
 
         // Handle keypresses
-        if let Some(Input::Character('q')) = window.getch() {
-            snowflake_bounce::finish();
+        if let Some(Input::Character(c)) = window.getch() {
+            match c {
+                'q' => snowflake_bounce::finish(),
+                'c' => bouncer.cycle_color(), // ✅ Press 'c' to change color
+                's' => bouncer.toggle_size(), // ✅ Press 's' to toggle size
+                _ => {}
+            }
         }
 
         // Update and draw
