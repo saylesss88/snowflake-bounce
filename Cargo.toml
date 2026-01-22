@@ -1,0 +1,14 @@
+[package]
+name = "snowflake-bounce"
+version = "0.1.0"
+edition = "2024"
+authors = ["T.Sawyer <saylesss87@proton.me>"]
+description = "A bouncing NixOS snowflake screensaver"
+license = "GPL-3.0-or-later"
+
+[dependencies]
+pancurses = {version = "0.17", features = ["wide"]}
+rand = "0.8"
+signal-hook = "0.3"
+term_size = "0.3"
+libc = "0.2"
