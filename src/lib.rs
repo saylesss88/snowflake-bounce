@@ -1,6 +1,20 @@
 extern crate pancurses;
+extern crate term_size;
 
 use pancurses::*;
+
+/// Get terminal dimensions safely
+pub fn get_term_size() -> (i32, i32) {
+    match term_size::dimensions() {
+        Some((width, height)) => {
+            // Enforce minimum size to prevent crashes
+            let width = width.max(10);
+            let height = height.max(10);
+            (height as i32, width as i32) // Return (rows, cols)
+        }
+        None => (24, 80), // Fallback to classic terminal size
+    }
+}
 
 /// Initialize ncurses with sensible defaults
 pub fn ncurses_init() -> Window {
