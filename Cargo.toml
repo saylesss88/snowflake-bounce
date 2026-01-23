@@ -9,7 +9,15 @@ repository = "https://github.com/saylesss88/snowflake-bounce"
 readme = "README.md"
 keywords = ["rust", "terminal"]
 homepage = "https://github.com/saylesss88/rmatrix-snowfall"
-exclude = ["docs", "demo.gif", ".github", ".gitignore"]
+exclude = [
+	"result",
+	"docs",
+	"demo.gif",
+	".github/",
+	".gitignore",
+	"flake.nix",
+	"flake.lock",
+]
 
 [dependencies]
 pancurses = {version = "0.17", features = ["wide"]}
