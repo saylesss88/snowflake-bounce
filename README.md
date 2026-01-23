@@ -35,5 +35,9 @@ inputs = {
 NixOS `systemPackages`:
 
 ```nix
-environment.systemPackages = [ inputs.snowflake-bounce.packages.${pkgs.system}.default ];
+{ inputs, pkgs, ... }: {
+environment.systemPackages = [ inputs.snowflake-bounce.packages.${pkgs.stdenv.hostPlatform.system}.default ];
+}
 ```
+
+- To use `inputs` pass it through `specialArgs`
