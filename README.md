@@ -8,6 +8,8 @@ A terminal-based screensaver with old DVD style bouncing snowflake graphic.
 
 - Press `s` to change size of flake
 
+- Press `f` for Easter Egg
+
 - Press `q` to exit
 
 ## Installation
