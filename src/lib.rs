@@ -22,18 +22,25 @@ where
     RNG.with(|rng| (*rng).borrow_mut().r#gen::<T>())
 }
 
+// ✅ Add an enum to track which symbol mode we're in
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SymbolMode {
+    SnowflakeSmall,
+    SnowflakeLarge,
+    NixOS,
+}
+
 pub struct Bouncer {
-    x: i32,       // Current X position
-    y: i32,       // Current Y position
-    prev_x: i32,  // Previous X (for erasing)
-    prev_y: i32,  // Previous Y (for erasing)
-    dx: i32,      // Velocity X (+1 or -1)
-    dy: i32,      // Velocity Y (+1 or -1)
-    symbol: char, // Keypress
-    color: i16,   // Current color (0-7)
-    max_x: i32,   // Right boundary
-    max_y: i32,   // Bottom boundary
-    pub size: usize,
+    x: i32,               // Current X position
+    y: i32,               // Current Y position
+    prev_x: i32,          // Previous X (for erasing)
+    prev_y: i32,          // Previous Y (for erasing)
+    dx: i32,              // Velocity X (+1 or -1)
+    dy: i32,              // Velocity Y (+1 or -1)
+    color: i16,           // Current color (0-7)
+    max_x: i32,           // Right boundary
+    max_y: i32,           // Bottom boundary
+    pub mode: SymbolMode, // ✅ Current display mode
 }
 
 impl Bouncer {
@@ -41,32 +48,40 @@ impl Bouncer {
         let (max_y, max_x) = get_term_size();
 
         // Start at random position (with padding to avoid edges)
-        let start_x = rng::<i32>() % (max_x - 4) + 2;
-        let start_y = rng::<i32>() % (max_y - 4) + 2;
+        // Start at random position (with padding to avoid edges)
+        let start_x = rng::<i32>() % (max_x - 50).max(5) + 2; // More padding for NixOS logo
+        let start_y = rng::<i32>() % (max_y - 25).max(5) + 2;
+        // let start_x = rng::<i32>() % (max_x - 20) + 10; // More padding for NixOS logo
+        // let start_y = rng::<i32>() % (max_y - 20) + 10;
 
         Bouncer {
             x: start_x,
             y: start_y,
             prev_x: start_x,
             prev_y: start_y,
-            dx: if rng::<bool>() { 1 } else { -1 }, // Random direction
+            dx: if rng::<bool>() { 1 } else { -1 },
             dy: if rng::<bool>() { 1 } else { -1 },
-            symbol: '❄',
             color: COLOR_BLUE,
             max_x: max_x - 1,
             max_y: max_y - 1,
-            size: 1,
+            mode: SymbolMode::NixOS, // Start with small snowflake
         }
     }
+
+    // ✅ Cycle through symbol modes
+    pub fn cycle_symbol(&mut self) {
+        self.mode = match self.mode {
+            SymbolMode::SnowflakeSmall => SymbolMode::SnowflakeLarge,
+            SymbolMode::SnowflakeLarge => SymbolMode::NixOS,
+            SymbolMode::NixOS => SymbolMode::SnowflakeSmall,
+        };
+    }
+
     // method to change color
     pub fn cycle_color(&mut self) {
         self.change_color();
     }
 
-    //  method to toggle size
-    pub fn toggle_size(&mut self) {
-        self.size = if self.size == 1 { 3 } else { 1 };
-    }
     fn change_color(&mut self) {
         let colors = [
             COLOR_GREEN,
@@ -89,13 +104,16 @@ impl Bouncer {
         self.x += self.dx;
         self.y += self.dy;
 
+        // Get logo dimensions for boundary checking
+        let (logo_width, logo_height) = self.get_logo_dimensions();
+
         // Bounce off left/right walls
         if self.x <= 0 {
-            self.x = 0; // Clamp to boundary
-            self.dx = -self.dx; // Reverse direction
-            self.change_color(); // Visual feedback
-        } else if self.x >= self.max_x {
-            self.x = self.max_x;
+            self.x = 0;
+            self.dx = -self.dx;
+            self.change_color();
+        } else if self.x + logo_width >= self.max_x {
+            self.x = self.max_x - logo_width;
             self.dx = -self.dx;
             self.change_color();
         }
@@ -105,63 +123,92 @@ impl Bouncer {
             self.y = 0;
             self.dy = -self.dy;
             self.change_color();
-        } else if self.y >= self.max_y {
-            self.y = self.max_y;
+        } else if self.y + logo_height >= self.max_y {
+            self.y = self.max_y - logo_height;
             self.dy = -self.dy;
             self.change_color();
         }
     }
-    pub fn draw(&self, window: &Window) {
-        // Draw based on size
-        if self.size == 1 {
-            // Single character
-            window.mvaddstr(self.prev_y, self.prev_x, " ");
-            window.attron(COLOR_PAIR(self.color as chtype));
-            window.mvaddstr(self.y, self.x, &self.symbol.to_string());
-            window.attroff(COLOR_PAIR(self.color as chtype));
-        } else {
-            // 3x3 block
-            let logo = ["  ❄  ", " ❄❄❄ ", "  ❄  "];
 
-            // Erase old
-            for i in 0..logo.len() {
-                window.mvaddstr(self.prev_y + i as i32, self.prev_x, "     ");
-            }
-
-            // Draw new
-            window.attron(COLOR_PAIR(self.color as chtype));
-            for (i, line) in logo.iter().enumerate() {
-                window.mvaddstr(self.y + i as i32, self.x, line);
-            }
-            window.attroff(COLOR_PAIR(self.color as chtype));
+    // ✅ Get dimensions of current logo
+    fn get_logo_dimensions(&self) -> (i32, i32) {
+        match self.mode {
+            SymbolMode::SnowflakeSmall => (1, 1),
+            SymbolMode::SnowflakeLarge => (5, 3),
+            SymbolMode::NixOS => (46, 19), // Updated for the full logo
         }
+    }
+    // fn get_logo_dimensions(&self) -> (i32, i32) {
+    //     match self.mode {
+    //         SymbolMode::SnowflakeSmall => (1, 1),
+    //         SymbolMode::SnowflakeLarge => (5, 3),
+    //         SymbolMode::NixOS => (22, 12), // Simplified NixOS logo
+    //     }
+    // }
+
+    // ✅ Get the logo lines for the current mode
+    fn get_logo_lines(&self) -> Vec<&str> {
+        match self.mode {
+            SymbolMode::SnowflakeSmall => vec!["❄"],
+            SymbolMode::SnowflakeLarge => vec!["  ❄  ", " ❄❄❄ ", "  ❄  "],
+            SymbolMode::NixOS => vec![
+                "          ::::.    ':::::     ::::'          ",
+                "          ':::::    ':::::.  ::::'           ",
+                "            :::::     '::::.:::::            ",
+                "      .......:::::..... ::::::::             ",
+                "     ::::::::::::::::::. ::::::    ::::.     ",
+                "    ::::::::::::::::::::: :::::.  .::::'     ",
+                "           .....           ::::' :::::'      ",
+                "          :::::            '::' :::::'       ",
+                " ........:::::               ' :::::::::::.  ",
+                ":::::::::::::                 :::::::::::::  ",
+                " ::::::::::: ..              :::::           ",
+                "     .::::: .:::            :::::            ",
+                "    .:::::  :::::          '''''    .....    ",
+                "    :::::   ':::::.  ......:::::::::::::'    ",
+                "     :::     ::::::. ':::::::::::::::::'     ",
+                "            .:::::::: '::::::::::            ",
+                "           .::::''::::.     '::::.           ",
+                "          .::::'   ::::.     '::::.          ",
+                "         .::::      ::::      '::::.         ",
+            ],
+        }
+    }
+
+    pub fn draw(&self, window: &Window) {
+        let logo_lines = self.get_logo_lines();
+        let (logo_width, logo_height) = self.get_logo_dimensions();
+
+        // Erase old position
+        for i in 0..logo_height {
+            let erase_str = " ".repeat(logo_width as usize);
+            window.mvaddstr(self.prev_y + i, self.prev_x, &erase_str);
+        }
+
+        // Draw new position
+        window.attron(COLOR_PAIR(self.color as chtype));
+        for (i, line) in logo_lines.iter().enumerate() {
+            window.mvaddstr(self.y + i as i32, self.x, line);
+        }
+        window.attroff(COLOR_PAIR(self.color as chtype));
 
         window.refresh();
         napms(50);
     }
-    // pub fn draw(&self, window: &Window) {
-    //     // Erase old position (overwrite with space)
-    //     window.mvaddstr(self.prev_y, self.prev_x, " ");
 
-    //     // Draw new position
-    //     window.attron(COLOR_PAIR(self.color as chtype));
-    //     window.mvaddstr(self.y, self.x, "❄");
-    //     window.attroff(COLOR_PAIR(self.color as chtype));
-
-    //     window.refresh(); // Actually display changes
-    //     napms(50); // ~20 FPS (50ms per frame)
-    // }
     pub fn resize(&mut self) {
         let (lines, cols) = get_term_size();
         self.max_y = lines as i32 - 1;
         self.max_x = cols as i32 - 1;
 
+        let (logo_width, logo_height) = self.get_logo_dimensions();
+
         // Reset position if we are now outside bounds
-        if self.x >= self.max_x {
-            self.x = self.max_x - 1;
+        if self.x + logo_width >= self.max_x {
+            self.x = (self.max_x - logo_width).max(0);
         }
-        if self.y >= self.max_y {
-            self.y = self.max_y - 1;
+        if self.y + logo_height >= self.max_y {
+            self.y = (self.max_y - logo_height).max(0);
         }
     }
 }
@@ -171,8 +218,8 @@ pub fn get_term_size() -> (i32, i32) {
     match term_size::dimensions() {
         Some((width, height)) => {
             // Enforce minimum size to prevent crashes
-            let width = width.max(10);
-            let height = height.max(10);
+            let width = width.max(30); // Increased for NixOS logo
+            let height = height.max(15);
             (height as i32, width as i32) // Return (rows, cols)
         }
         None => (24, 80), // Fallback to classic terminal size
@@ -181,28 +228,29 @@ pub fn get_term_size() -> (i32, i32) {
 
 /// Initialize ncurses with sensible defaults
 pub fn ncurses_init() -> Window {
-    let window = initscr(); // Initialize the screen
+    let window = initscr();
 
     // Configure terminal behavior
-    window.nodelay(true); // getch() doesn't block (returns None immediately)
-    noecho(); // Don't echo keypresses to screen
-    cbreak(); // Disable line buffering (get chars immediately)
-    curs_set(0); // Hide the cursor
+    window.nodelay(true);
+    noecho();
+    cbreak();
+    curs_set(0);
 
     // Set up colors
     if has_colors() {
-        start_color(); // Enable color mode
-        use_default_colors(); // Use terminal's default bg/fg
+        start_color();
+        use_default_colors();
 
-        // Initialize color pairs (foreground color, background -1 = default)
+        // Initialize color pairs
         for i in 0..8 {
             init_pair(i, i, -1);
         }
     }
 
-    window.refresh(); // Apply all changes
+    window.refresh();
     window
 }
+
 pub fn resize_window() {
     endwin();
     initscr();
@@ -210,7 +258,7 @@ pub fn resize_window() {
 
 /// Clean exit: restore terminal state
 pub fn finish() {
-    curs_set(1); // Show cursor again
-    endwin(); // End ncurses mode
+    curs_set(1);
+    endwin();
     std::process::exit(0);
 }

@@ -49,7 +49,7 @@ fn main() {
             match c {
                 'q' => snowflake_bounce::finish(),
                 'c' => bouncer.cycle_color(), // ✅ Press 'c' to change color
-                's' => bouncer.toggle_size(), // ✅ Press 's' to toggle size
+                's' => bouncer.cycle_symbol(), // ✅ Press 's' to cycle symbols
                 _ => {}
             }
         }
