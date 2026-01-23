@@ -6,7 +6,7 @@ A terminal-based screensaver with old DVD style bouncing snowflake graphic.
 
 - Press `c` to change color
 
-- Press `s` to change size of flake (WIP)
+- Press `s` to change size of flake
 
 - Press `q` to exit
 
@@ -31,5 +31,3 @@ NixOS `systemPackages`:
 ```nix
 environment.systemPackages = [ inputs.snowflake-bounce.packages.${pkgs.system}.default ];
 ```
-
-This is a WIP
