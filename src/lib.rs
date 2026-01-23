@@ -2,8 +2,11 @@ extern crate pancurses;
 extern crate rand;
 extern crate term_size;
 
-use pancurses::*;
-
+use pancurses::{
+    cbreak, chtype, curs_set, endwin, has_colors, init_pair, initscr, napms, noecho, start_color,
+    use_default_colors, Window, COLOR_BLUE, COLOR_CYAN, COLOR_GREEN, COLOR_MAGENTA, COLOR_PAIR,
+    COLOR_RED, COLOR_WHITE, COLOR_YELLOW,
+};
 use rand::distributions::{Distribution, Standard};
 
 use rand::rngs::SmallRng;
@@ -23,7 +26,7 @@ where
 }
 
 // ✅ Add an enum to track which symbol mode we're in
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SymbolMode {
     SnowflakeSmall,
     SnowflakeLarge,
@@ -44,17 +47,15 @@ pub struct Bouncer {
 }
 
 impl Bouncer {
+    #[must_use]
     pub fn new() -> Self {
         let (max_y, max_x) = get_term_size();
 
         // Start at random position (with padding to avoid edges)
-        // Start at random position (with padding to avoid edges)
         let start_x = rng::<i32>() % (max_x - 50).max(5) + 2; // More padding for NixOS logo
         let start_y = rng::<i32>() % (max_y - 25).max(5) + 2;
-        // let start_x = rng::<i32>() % (max_x - 20) + 10; // More padding for NixOS logo
-        // let start_y = rng::<i32>() % (max_y - 20) + 10;
 
-        Bouncer {
+        Self {
             x: start_x,
             y: start_y,
             prev_x: start_x,
@@ -64,12 +65,12 @@ impl Bouncer {
             color: COLOR_BLUE,
             max_x: max_x - 1,
             max_y: max_y - 1,
-            mode: SymbolMode::NixOS, // Start with small snowflake
+            mode: SymbolMode::NixOS, // Start with big flake
         }
     }
 
     // ✅ Cycle through symbol modes
-    pub fn cycle_symbol(&mut self) {
+    pub const fn cycle_symbol(&mut self) {
         self.mode = match self.mode {
             SymbolMode::SnowflakeSmall => SymbolMode::SnowflakeLarge,
             SymbolMode::SnowflakeLarge => SymbolMode::NixOS,
@@ -131,20 +132,13 @@ impl Bouncer {
     }
 
     // ✅ Get dimensions of current logo
-    fn get_logo_dimensions(&self) -> (i32, i32) {
+    const fn get_logo_dimensions(&self) -> (i32, i32) {
         match self.mode {
             SymbolMode::SnowflakeSmall => (1, 1),
             SymbolMode::SnowflakeLarge => (5, 3),
             SymbolMode::NixOS => (46, 19), // Updated for the full logo
         }
     }
-    // fn get_logo_dimensions(&self) -> (i32, i32) {
-    //     match self.mode {
-    //         SymbolMode::SnowflakeSmall => (1, 1),
-    //         SymbolMode::SnowflakeLarge => (5, 3),
-    //         SymbolMode::NixOS => (22, 12), // Simplified NixOS logo
-    //     }
-    // }
 
     // ✅ Get the logo lines for the current mode
     fn get_logo_lines(&self) -> Vec<&str> {
@@ -188,7 +182,11 @@ impl Bouncer {
         // Draw new position
         window.attron(COLOR_PAIR(self.color as chtype));
         for (i, line) in logo_lines.iter().enumerate() {
-            window.mvaddstr(self.y + i as i32, self.x, line);
+            window.mvaddstr(
+                self.y + i32::try_from(i).expect("logo line index too large"),
+                self.x,
+                line,
+            );
         }
         window.attroff(COLOR_PAIR(self.color as chtype));
 
@@ -198,8 +196,8 @@ impl Bouncer {
 
     pub fn resize(&mut self) {
         let (lines, cols) = get_term_size();
-        self.max_y = lines as i32 - 1;
-        self.max_x = cols as i32 - 1;
+        self.max_y = lines - 1;
+        self.max_x = cols - 1;
 
         let (logo_width, logo_height) = self.get_logo_dimensions();
 
@@ -212,8 +210,14 @@ impl Bouncer {
         }
     }
 }
+impl Default for Bouncer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Get terminal dimensions safely
+#[must_use]
 pub fn get_term_size() -> (i32, i32) {
     match term_size::dimensions() {
         Some((width, height)) => {
