@@ -12,6 +12,10 @@ A terminal-based screensaver with old DVD style bouncing snowflake graphic.
 
 ## Installation
 
+```bash
+cargo install snowflake-bounce
+```
+
 **Nix**
 
 ```bash
