@@ -1,6 +1,6 @@
 [package]
 name = "snowflake-bounce"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 authors = ["T.Sawyer <saylesss87@proton.me>"]
 description = "A bouncing NixOS snowflake screensaver"
@@ -20,9 +20,18 @@ exclude = [
 ]
 
 [dependencies]
-pancurses = {version = "0.17", features = ["wide"]}
-rand = {version = "0.8.5", features = ["small_rng"]}
-
-signal-hook = "0.4.1"
+pancurses = {version = "0.17", default-features = false, features = ["wide"]}
+rand = {version = "0.8", default-features = false, features = [
+	"small_rng",
+	"std",
+]}
+signal-hook = {version = "0.4", default-features = false}
 term_size = "0.3"
 libc = "0.2"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
