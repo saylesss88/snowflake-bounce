@@ -31,6 +31,7 @@ pub enum SymbolMode {
     SnowflakeSmall,
     SnowflakeLarge,
     NixOS,
+    MiddleFinger,
 }
 
 pub struct Bouncer {
@@ -75,6 +76,7 @@ impl Bouncer {
             SymbolMode::SnowflakeSmall => SymbolMode::SnowflakeLarge,
             SymbolMode::SnowflakeLarge => SymbolMode::NixOS,
             SymbolMode::NixOS => SymbolMode::SnowflakeSmall,
+            SymbolMode::MiddleFinger => SymbolMode::SnowflakeSmall,
         };
     }
 
@@ -130,6 +132,9 @@ impl Bouncer {
             self.change_color();
         }
     }
+    pub fn set_middle_finger(&mut self) {
+        self.mode = SymbolMode::MiddleFinger;
+    }
 
     // ✅ Get dimensions of current logo
     const fn get_logo_dimensions(&self) -> (i32, i32) {
@@ -137,6 +142,7 @@ impl Bouncer {
             SymbolMode::SnowflakeSmall => (1, 1),
             SymbolMode::SnowflakeLarge => (5, 3),
             SymbolMode::NixOS => (46, 19), // Updated for the full logo
+            SymbolMode::MiddleFinger => (2, 1),
         }
     }
 
@@ -166,6 +172,7 @@ impl Bouncer {
                 "          .::::'   ::::.     '::::.          ",
                 "         .::::      ::::      '::::.         ",
             ],
+            SymbolMode::MiddleFinger => vec!["🖕"],
         }
     }
 

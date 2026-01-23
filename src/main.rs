@@ -50,6 +50,7 @@ fn main() {
                 'q' => snowflake_bounce::finish(),
                 'c' => bouncer.cycle_color(), // ✅ Press 'c' to change color
                 's' => bouncer.cycle_symbol(), // ✅ Press 's' to cycle symbols
+                'f' => bouncer.set_middle_finger(), // ✅ Press 'f' to pay respects
                 _ => {}
             }
         }
