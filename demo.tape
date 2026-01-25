@@ -55,7 +55,7 @@
 #   Hide                            Hide the subsequent commands from the output
 #   Show                            Show the subsequent commands in the output
 
-Output demo.webm
+Output demo.gif
 
 
 Set Shell "bash"
@@ -70,7 +70,7 @@ Type "snowflake-bounce"
 Enter
 
 # Allow it to run initially for 3 seconds
-Sleep 6s
+Sleep 4s
 
 # 2. Press 's' to change size (Type sends the key without pressing Enter)
 Type "s"
