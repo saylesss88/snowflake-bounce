@@ -4,7 +4,7 @@
 
 A terminal-based screensaver with old DVD style bouncing snowflake graphic.
 
-![snowflake-bounce](https://raw.githubusercontent.com/saylesss88/snowflake-bounce/main/assets/snowflake-bounce.cleaned.png)
+![snowflake-bounce demo](https://raw.githubusercontent.com/saylesss88/snowflake-bounce/main/assets/demo.gif)
 
 - Press `c` to change color
 
