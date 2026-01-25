@@ -3,6 +3,7 @@
 [![Nix](https://img.shields.io/badge/Nix-5277C3?style=flat&logo=nixos&logoColor=white)](https://nixos.org)
 
 A terminal-based screensaver with old DVD style bouncing snowflake graphic.
+(NOTE: The colors in the demo are off)
 
 ![snowflake-bounce demo](https://raw.githubusercontent.com/saylesss88/snowflake-bounce/main/assets/demo.gif)
 
