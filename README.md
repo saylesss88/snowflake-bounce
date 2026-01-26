@@ -33,6 +33,13 @@ A terminal-based screensaver with old DVD style bouncing snowflake graphic.
 cargo install snowflake-bounce
 ```
 
+Version check:
+
+```bash
+snowflake-bounce -V
+snowflake-bounce --version
+```
+
 **For Nix Users**
 
 ```bash
