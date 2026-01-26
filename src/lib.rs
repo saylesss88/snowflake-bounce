@@ -2,15 +2,16 @@ extern crate pancurses;
 extern crate rand;
 extern crate term_size;
 
-use pancurses::{
-    cbreak, chtype, curs_set, endwin, has_colors, init_pair, initscr, napms, noecho, start_color,
-    use_default_colors, Window, COLOR_BLUE, COLOR_CYAN, COLOR_GREEN, COLOR_MAGENTA, COLOR_PAIR,
-    COLOR_RED, COLOR_WHITE, COLOR_YELLOW,
+use crossterm::{
+    cursor, queue,
+    style::{self, Color, Stylize},
+    terminal,
 };
 use rand::distributions::{Distribution, Standard};
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 use std::cell::RefCell;
+use std::io::{self, Write};
 
 // Thread-local pseudo-random number generator used by the animation.
 //
@@ -49,15 +50,15 @@ pub enum SymbolMode {
 /// symbol/logo to render, and exposes methods to update physics,
 /// redraw, and respond to resizes and key events.
 pub struct Bouncer {
-    x: i32,
-    y: i32,
-    prev_x: i32,
-    prev_y: i32,
+    x: u16,
+    y: u16,
     dx: i32,
     dy: i32,
-    color: i16,
-    max_x: i32,
-    max_y: i32,
+    color: Color,
+    max_x: u16,
+    max_y: u16,
+    prev_x: u16,
+    prev_y: u16,
     /// Currently selected display mode.
     pub mode: SymbolMode,
 }
@@ -70,21 +71,19 @@ impl Bouncer {
     /// the NixOS logo.
     #[must_use]
     pub fn new() -> Self {
-        let (max_y, max_x) = get_term_size();
+        let (max_x, max_y) = terminal::size().unwrap_or((80, 24));
 
         let start_x = rng::<i32>() % (max_x - 50).max(5) + 2;
         let start_y = rng::<i32>() % (max_y - 25).max(5) + 2;
 
         Self {
-            x: start_x,
-            y: start_y,
-            prev_x: start_x,
-            prev_y: start_y,
-            dx: if rng::<bool>() { 1 } else { -1 },
-            dy: if rng::<bool>() { 1 } else { -1 },
-            color: COLOR_BLUE,
-            max_x: max_x - 1,
-            max_y: max_y - 1,
+            x: max_x / 2,
+            y: max_y / 2,
+            dx: 1,
+            dy: 1,
+            color: Color::Blue,
+            max_x: max_x.saturating_sub(1),
+            max_y: max_y.saturating_sub(1),
             mode: SymbolMode::NixOS,
         }
     }
@@ -105,7 +104,16 @@ impl Bouncer {
 
     /// Randomize the current color used to draw the logo.
     pub fn cycle_color(&mut self) {
-        self.change_color();
+        let colors = [
+            Color::Green,
+            Color::Blue,
+            Color::White,
+            Color::Yellow,
+            Color::Cyan,
+            Color::Magenta,
+            Color::Red,
+        ];
+        self.color = colors[rng::<usize>() % colors.len()];
     }
 
     /// Internal helper to pick a new random color.
@@ -127,33 +135,45 @@ impl Bouncer {
     /// Updates position based on velocity, bounces off the terminal
     /// boundaries, and randomizes color on each bounce.
     pub fn update(&mut self) {
-        self.prev_x = self.x;
-        self.prev_y = self.y;
+        // 1. Calculate the NEW candidate position as signed integers (i32).
+        //    We cast `self.x` (u16) to i32 so we can add negative velocity safely.
+        let mut nx = self.x as i32 + self.dx;
+        let mut ny = self.y as i32 + self.dy;
 
-        self.x += self.dx;
-        self.y += self.dy;
+        // 2. Get logo size for collision checks
+        let (w, h) = self.get_logo_dimensions(); // these return i32s currently
 
-        let (logo_width, logo_height) = self.get_logo_dimensions();
-
-        if self.x <= 0 {
-            self.x = 0;
-            self.dx = -self.dx;
+        // 3. Check X-axis collision (left or right wall)
+        //    Collision with left wall (0)
+        if nx <= 0 {
+            nx = 0;
+            self.dx = -self.dx; // Reverse direction
             self.change_color();
-        } else if self.x + logo_width >= self.max_x {
-            self.x = self.max_x - logo_width;
+        }
+        // Collision with right wall (max_x)
+        else if nx + w >= self.max_x as i32 {
+            nx = self.max_x as i32 - w;
             self.dx = -self.dx;
             self.change_color();
         }
 
-        if self.y <= 0 {
-            self.y = 0;
-            self.dy = -self.dy;
-            self.change_color();
-        } else if self.y + logo_height >= self.max_y {
-            self.y = self.max_y - logo_height;
+        // 4. Check Y-axis collision (top or bottom wall)
+        //    Collision with top (0)
+        if ny <= 0 {
+            ny = 0;
             self.dy = -self.dy;
             self.change_color();
         }
+        // Collision with bottom (max_y)
+        else if ny + h >= self.max_y as i32 {
+            ny = self.max_y as i32 - h;
+            self.dy = -self.dy;
+            self.change_color();
+        }
+
+        // 5. Store the valid result back into our u16 state
+        self.x = nx as u16;
+        self.y = ny as u16;
     }
 
     /// Switch the current symbol to the middle-finger glyph.
@@ -207,52 +227,46 @@ impl Bouncer {
         }
     }
 
-    /// Erase the previous logo position and draw it at the new coordinates.
-    ///
-    /// This uses ncurses to clear the previous rectangle, apply the
-    /// current color pair, print each logo line, and refresh the window.
-    pub fn draw(&self, window: &Window) {
-        let logo_lines = self.get_logo_lines();
+    pub fn draw(&self, w: &mut impl Write) -> io::Result<()> {
         let (logo_width, logo_height) = self.get_logo_dimensions();
+        let logo_lines = self.get_logo_lines();
 
-        // Clear the old area.
+        // 1. Erase the OLD position.
+        //    We use the stored `prev_x` / `prev_y` to know where to overwrite with spaces.
+        //    (Note: You need to keep `prev_x` and `prev_y` in your struct for this to work!)
         for i in 0..logo_height {
-            let erase_str = " ".repeat(logo_width as usize);
-            window.mvaddstr(self.prev_y + i, self.prev_x, &erase_str);
+            queue!(
+                w,
+                cursor::MoveTo(self.prev_x, self.prev_y + i as u16),
+                style::Print(" ".repeat(logo_width as usize))
+            )?;
         }
 
-        // Draw the logo at the new location with the active color pair.
-        window.attron(COLOR_PAIR(self.color as chtype));
+        // 2. Draw the NEW logo at the current `x` / `y`.
         for (i, line) in logo_lines.iter().enumerate() {
-            window.mvaddstr(
-                self.y + i32::try_from(i).expect("logo line index too large"),
-                self.x,
-                line,
-            );
+            queue!(
+                w,
+                cursor::MoveTo(self.x, self.y + i as u16),
+                style::SetForegroundColor(self.color),
+                style::Print(line),
+                style::ResetColor
+            )?;
         }
-        window.attroff(COLOR_PAIR(self.color as chtype));
 
-        window.refresh();
-        napms(50);
+        // 3. Flush everything to the terminal at once.
+        w.flush()?;
+        Ok(())
     }
 
     /// Update cached terminal bounds and clamp the logo position.
     ///
     /// This should be called after handling a resize event so that the
     /// bouncer uses the new terminal size for collision detection.
-    pub fn resize(&mut self) {
-        let (lines, cols) = get_term_size();
-        self.max_y = lines - 1;
-        self.max_x = cols - 1;
-
-        let (logo_width, logo_height) = self.get_logo_dimensions();
-
-        if self.x + logo_width >= self.max_x {
-            self.x = (self.max_x - logo_width).max(0);
-        }
-        if self.y + logo_height >= self.max_y {
-            self.y = (self.max_y - logo_height).max(0);
-        }
+    pub fn resize(&mut self, w: u16, h: u16) {
+        self.max_x = w.saturating_sub(1);
+        self.max_y = h.saturating_sub(1);
+        self.x = self.x.min(self.max_x);
+        self.y = self.y.min(self.max_y);
     }
 }
 
