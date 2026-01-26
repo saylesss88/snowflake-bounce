@@ -1,6 +1,6 @@
 [package]
 name = "snowflake-bounce"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2024"
 authors = ["T.Sawyer <saylesss87@proton.me>"]
 description = "A bouncing NixOS snowflake screensaver"
@@ -25,6 +25,7 @@ rand = {version = "0.8.5", default-features = false, features = [
 	"std",
 ]}
 term_size = "0.3"
+clap = {version = "4.5.54", features = ["derive"]}
 
 [profile.release]
 opt-level = "z"
