@@ -1,70 +1,60 @@
-extern crate libc;
-extern crate pancurses;
-extern crate signal_hook;
-extern crate snowflake_bounce;
-
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-
-use pancurses::*;
-use signal_hook::consts::signal::{SIGINT, SIGQUIT, SIGTERM, SIGWINCH};
-use signal_hook::flag;
+use crossterm::{
+    cursor,
+    event::{self, Event, KeyCode, KeyEvent},
+    execute,
+    terminal::{self, disable_raw_mode, enable_raw_mode},
+};
+use std::io::{stdout, Write};
+use std::time::Duration;
 
 use snowflake_bounce::Bouncer;
 
-/// Entry point for the snowflake-bounce animation.
-///
-/// Sets up locale for Unicode rendering, initializes ncurses,
-/// installs signal handlers for resize/exit, and runs the main
-/// animation loop until the user quits.
-fn main() {
-    // Enable UTF-8 locale so Unicode glyphs render correctly in ncurses.
-    unsafe {
-        libc::setlocale(libc::LC_ALL, std::ffi::CString::new("").unwrap().as_ptr());
-    }
+fn main() -> std::io::Result<()> {
+    // 1. SETUP
+    // Enable raw mode to read keys byte-by-byte instantly
+    enable_raw_mode()?;
 
-    // Initialize the main ncurses window.
-    let window = snowflake_bounce::ncurses_init();
+    let mut stdout = stdout();
 
-    // Shared flags toggled by POSIX signals.
-    let exit_signal = Arc::new(AtomicBool::new(false));
-    let resize_signal = Arc::new(AtomicBool::new(false));
+    // Switch to alternate screen (like vim/htop do) and hide cursor
+    execute!(stdout, terminal::EnterAlternateScreen, cursor::Hide)?;
 
-    // Flip flags whenever the corresponding signal is delivered.
-    flag::register(SIGWINCH, Arc::clone(&resize_signal)).unwrap();
-    flag::register(SIGINT, Arc::clone(&exit_signal)).unwrap();
-    flag::register(SIGTERM, Arc::clone(&exit_signal)).unwrap();
-    flag::register(SIGQUIT, Arc::clone(&exit_signal)).unwrap();
-
-    // Animated logo state.
+    // 2. STATE
     let mut bouncer = Bouncer::new();
+    let mut running = true;
 
-    // Main event loop: react to signals, keys, and update animation.
-    loop {
-        // Handle terminal resize.
-        if resize_signal.swap(false, Ordering::Relaxed) {
-            snowflake_bounce::resize_window();
-            bouncer.resize();
-        }
+    // 3. GAME LOOP
+    while running {
+        // DRAW: Render the current frame
+        bouncer.draw(&mut stdout)?;
 
-        // Handle termination signals.
-        if exit_signal.swap(false, Ordering::Relaxed) {
-            snowflake_bounce::finish();
-        }
-
-        // Handle non-blocking key input.
-        if let Some(Input::Character(c)) = window.getch() {
-            match c {
-                'q' => snowflake_bounce::finish(),
-                'c' => bouncer.cycle_color(),
-                's' => bouncer.cycle_symbol(),
-                'f' => bouncer.set_middle_finger(),
+        // POLL: Wait up to 50ms for an event.
+        if event::poll(Duration::from_millis(50))? {
+            // Read the event ONCE
+            match event::read()? {
+                Event::Key(KeyEvent { code, .. }) => match code {
+                    KeyCode::Char('q') | KeyCode::Esc => running = false,
+                    KeyCode::Char('c') => bouncer.cycle_color(),
+                    KeyCode::Char('s') => bouncer.cycle_symbol(),
+                    KeyCode::Char('f') => bouncer.set_middle_finger(),
+                    _ => {}
+                },
+                Event::Resize(w, h) => {
+                    bouncer.resize(w, h);
+                    execute!(stdout, terminal::Clear(terminal::ClearType::All))?;
+                }
                 _ => {}
             }
         }
 
-        // Advance physics and redraw.
+        // UPDATE: Advance animation physics
         bouncer.update();
-        bouncer.draw(&window);
     }
+
+    // 4. CLEANUP
+    // Always restore terminal state before exiting!
+    execute!(stdout, cursor::Show, terminal::LeaveAlternateScreen)?;
+    disable_raw_mode()?;
+
+    Ok(())
 }
