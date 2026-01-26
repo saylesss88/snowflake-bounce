@@ -1,3 +1,4 @@
+use clap::Parser;
 use crossterm::{
     cursor,
     event::{self, Event, KeyCode, KeyEvent},
@@ -9,7 +10,17 @@ use std::time::Duration;
 
 use snowflake_bounce::Bouncer;
 
+/// A terminal-based screensaver with bouncing snowflakes
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    // Future: Add other options here like --color, --speed, etc.
+}
+
 fn main() -> std::io::Result<()> {
+    // Parse CLI args (this handles --version automatically)
+    let _args = Args::parse();
+
     // 1. SETUP
     // Enable raw mode to read keys byte-by-byte instantly
     enable_raw_mode()?;
