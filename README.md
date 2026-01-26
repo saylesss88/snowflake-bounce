@@ -15,16 +15,30 @@ A terminal-based screensaver with old DVD style bouncing snowflake graphic.
 
 - Press `q` to exit
 
+---
+
+## Features
+
+- Pure Rust implementation using crossterm (no C dependencies)
+- Cross-platform terminal support
+- Smooth animations with configurable symbols
+- Multiple color schemes
+- Lightweight and fast
+
+---
+
 ## Installation
 
 ```bash
 cargo install snowflake-bounce
 ```
 
-**Nix**
+**For Nix Users**
 
 ```bash
 nix run github:saylesss88/snowflake-bounce
+
+./result/bin/snowflake-bounce
 ```
 
 **Flake Input**
@@ -44,3 +58,18 @@ environment.systemPackages = [ inputs.snowflake-bounce.packages.${pkgs.stdenv.ho
 ```
 
 - To use `inputs` pass it through `specialArgs`
+
+---
+
+## Building from Source
+
+```bash
+git clone https://github.com/saylesss88/snowflake-bounce
+cd snowflake-bounce
+cargo build --release
+./target/release/snowflake-bounce
+```
+
+---
+
+## License
