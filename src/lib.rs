@@ -1,10 +1,6 @@
-extern crate pancurses;
-extern crate rand;
-extern crate term_size;
-
 use crossterm::{
     cursor, queue,
-    style::{self, Color, Stylize},
+    style::{self, Color},
     terminal,
 };
 use rand::distributions::{Distribution, Standard};
@@ -13,17 +9,11 @@ use rand::{Rng, SeedableRng};
 use std::cell::RefCell;
 use std::io::{self, Write};
 
-// Thread-local pseudo-random number generator used by the animation.
-//
-// A small, cheap RNG is created per thread and reused for all random
-// choices such as starting position, velocity, and color.
+// --- RNG Helper (unchanged) ---
 thread_local! {
     static RNG: RefCell<SmallRng> = RefCell::new(SmallRng::from_entropy());
 }
 
-/// Generate a random value using the thread-local RNG.
-///
-/// This uses the `Standard` distribution for the requested type `T`.
 fn rng<T>() -> T
 where
     Standard: Distribution<T>,
@@ -31,69 +21,61 @@ where
     RNG.with(|rng| (*rng).borrow_mut().r#gen::<T>())
 }
 
-/// Symbol selection for the animated “logo” drawn in the terminal.
+// --- Symbol Enums (unchanged) ---
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SymbolMode {
-    /// Single-character Unicode snowflake.
     SnowflakeSmall,
-    /// Larger 3-line snowflake.
     SnowflakeLarge,
-    /// Multi-line ASCII-art NixOS logo.
     NixOS,
-    /// Single-character Unicode middle finger.
     MiddleFinger,
 }
 
-/// Animated logo that moves and bounces within the terminal.
-///
-/// The `Bouncer` tracks position, velocity, current color, and which
-/// symbol/logo to render, and exposes methods to update physics,
-/// redraw, and respond to resizes and key events.
+// --- Bouncer Struct ---
 pub struct Bouncer {
     x: u16,
     y: u16,
+    prev_x: u16, // Added back for clearing
+    prev_y: u16, // Added back for clearing
     dx: i32,
     dy: i32,
-    color: Color,
+    color: Color, // Changed from i16 to crossterm::style::Color
     max_x: u16,
     max_y: u16,
-    prev_x: u16,
-    prev_y: u16,
-    /// Currently selected display mode.
     pub mode: SymbolMode,
 }
 
 impl Bouncer {
-    /// Create a new `Bouncer` with random starting position and direction.
-    ///
-    /// The starting coordinates are chosen to keep the initial logo away
-    /// from the edges of the terminal, and the default symbol mode is
-    /// the NixOS logo.
     #[must_use]
     pub fn new() -> Self {
-        let (max_x, max_y) = terminal::size().unwrap_or((80, 24));
+        // Use crossterm to get size, defaulting to 80x24 if it fails
+        let (cols, lines) = terminal::size().unwrap_or((80, 24));
 
-        let start_x = rng::<i32>() % (max_x - 50).max(5) + 2;
-        let start_y = rng::<i32>() % (max_y - 25).max(5) + 2;
+        let max_x = cols.saturating_sub(1);
+        let max_y = lines.saturating_sub(1);
+
+        // Random start position, safely cast to i32 for math, then back to u16
+        // We use slightly smaller bounds to ensure we don't start off-screen
+        let start_x_i32 = rng::<i32>() % (max_x as i32 - 50).max(5) + 2;
+        let start_y_i32 = rng::<i32>() % (max_y as i32 - 25).max(5) + 2;
+
+        let start_x = start_x_i32 as u16;
+        let start_y = start_y_i32 as u16;
 
         Self {
-            x: max_x / 2,
-            y: max_y / 2,
-            dx: 1,
-            dy: 1,
+            x: start_x,
+            y: start_y,
+            prev_x: start_x,
+            prev_y: start_y,
+            dx: if rng::<bool>() { 1 } else { -1 },
+            dy: if rng::<bool>() { 1 } else { -1 },
             color: Color::Blue,
-            max_x: max_x.saturating_sub(1),
-            max_y: max_y.saturating_sub(1),
+            max_x,
+            max_y,
             mode: SymbolMode::NixOS,
         }
     }
 
-    /// Cycle through the available symbol modes.
-    ///
-    /// Pressing `'s'` in the UI calls this to step between small snowflake,
-    /// large snowflake, and NixOS logo. The middle-finger mode always
-    /// cycles back to the small snowflake.
-    pub const fn cycle_symbol(&mut self) {
+    pub fn cycle_symbol(&mut self) {
         self.mode = match self.mode {
             SymbolMode::SnowflakeSmall => SymbolMode::SnowflakeLarge,
             SymbolMode::SnowflakeLarge => SymbolMode::NixOS,
@@ -102,7 +84,6 @@ impl Bouncer {
         };
     }
 
-    /// Randomize the current color used to draw the logo.
     pub fn cycle_color(&mut self) {
         let colors = [
             Color::Green,
@@ -116,76 +97,76 @@ impl Bouncer {
         self.color = colors[rng::<usize>() % colors.len()];
     }
 
-    /// Internal helper to pick a new random color.
+    // Internal helper to pick a random color (same logic as cycle_color)
     fn change_color(&mut self) {
-        let colors = [
-            COLOR_GREEN,
-            COLOR_BLUE,
-            COLOR_WHITE,
-            COLOR_YELLOW,
-            COLOR_CYAN,
-            COLOR_MAGENTA,
-            COLOR_RED,
-        ];
-        self.color = colors[rng::<usize>() % colors.len()];
+        self.cycle_color();
     }
 
-    /// Advance the animation by one step.
-    ///
-    /// Updates position based on velocity, bounces off the terminal
-    /// boundaries, and randomizes color on each bounce.
-    pub fn update(&mut self) {
-        // 1. Calculate the NEW candidate position as signed integers (i32).
-        //    We cast `self.x` (u16) to i32 so we can add negative velocity safely.
-        let mut nx = self.x as i32 + self.dx;
-        let mut ny = self.y as i32 + self.dy;
-
-        // 2. Get logo size for collision checks
-        let (w, h) = self.get_logo_dimensions(); // these return i32s currently
-
-        // 3. Check X-axis collision (left or right wall)
-        //    Collision with left wall (0)
-        if nx <= 0 {
-            nx = 0;
-            self.dx = -self.dx; // Reverse direction
-            self.change_color();
-        }
-        // Collision with right wall (max_x)
-        else if nx + w >= self.max_x as i32 {
-            nx = self.max_x as i32 - w;
-            self.dx = -self.dx;
-            self.change_color();
-        }
-
-        // 4. Check Y-axis collision (top or bottom wall)
-        //    Collision with top (0)
-        if ny <= 0 {
-            ny = 0;
-            self.dy = -self.dy;
-            self.change_color();
-        }
-        // Collision with bottom (max_y)
-        else if ny + h >= self.max_y as i32 {
-            ny = self.max_y as i32 - h;
-            self.dy = -self.dy;
-            self.change_color();
-        }
-
-        // 5. Store the valid result back into our u16 state
-        self.x = nx as u16;
-        self.y = ny as u16;
-    }
-
-    /// Switch the current symbol to the middle-finger glyph.
-    ///
-    /// Pressing `'f'` in the UI calls this.
     pub fn set_middle_finger(&mut self) {
         self.mode = SymbolMode::MiddleFinger;
     }
 
-    /// Logical width and height of the current logo in characters.
-    ///
-    /// These dimensions are used for collision detection and erasing.
+    pub fn update(&mut self) {
+        // Save old position for erasing
+        self.prev_x = self.x;
+        self.prev_y = self.y;
+
+        // Calculate candidate new position as signed integers
+        let mut nx = self.x as i32 + self.dx;
+        let mut ny = self.y as i32 + self.dy;
+
+        let (logo_w_i32, logo_h_i32) = self.get_logo_dimensions();
+
+        // Bounce X
+        if nx <= 0 {
+            nx = 0;
+            self.dx = -self.dx;
+            self.change_color();
+        } else if nx + logo_w_i32 >= self.max_x as i32 {
+            nx = self.max_x as i32 - logo_w_i32;
+            self.dx = -self.dx;
+            self.change_color();
+        }
+
+        // Bounce Y
+        if ny <= 0 {
+            ny = 0;
+            self.dy = -self.dy;
+            self.change_color();
+        } else if ny + logo_h_i32 >= self.max_y as i32 {
+            ny = self.max_y as i32 - logo_h_i32;
+            self.dy = -self.dy;
+            self.change_color();
+        }
+
+        self.x = nx as u16;
+        self.y = ny as u16;
+    }
+
+    pub fn resize(&mut self, w: u16, h: u16) {
+        self.max_x = w.saturating_sub(1);
+        self.max_y = h.saturating_sub(1);
+
+        let (logo_w, logo_h) = self.get_logo_dimensions();
+
+        // Clamp CURRENT position if terminal shrank
+        if self.x + (logo_w as u16) >= self.max_x {
+            self.x = self.max_x.saturating_sub(logo_w as u16);
+        }
+        if self.y + (logo_h as u16) >= self.max_y {
+            self.y = self.max_y.saturating_sub(logo_h as u16);
+        }
+
+        // CRITICAL: Also clamp PREVIOUS position so draw() doesn't panic!
+        if self.prev_x + (logo_w as u16) >= self.max_x {
+            self.prev_x = self.max_x.saturating_sub(logo_w as u16);
+        }
+        if self.prev_y + (logo_h as u16) >= self.max_y {
+            self.prev_y = self.max_y.saturating_sub(logo_h as u16);
+        }
+    }
+
+    // Helper: Dimensions are i32 for easy math, but small enough to fit u16
     const fn get_logo_dimensions(&self) -> (i32, i32) {
         match self.mode {
             SymbolMode::SnowflakeSmall => (1, 1),
@@ -195,9 +176,6 @@ impl Bouncer {
         }
     }
 
-    /// Text lines for the currently selected logo.
-    ///
-    /// Each string in the returned vector represents one row to be drawn.
     fn get_logo_lines(&self) -> Vec<&str> {
         match self.mode {
             SymbolMode::SnowflakeSmall => vec!["❄"],
@@ -227,108 +205,58 @@ impl Bouncer {
         }
     }
 
+    // --- The Main Draw Function (Using Crossterm) ---
     pub fn draw(&self, w: &mut impl Write) -> io::Result<()> {
-        let (logo_width, logo_height) = self.get_logo_dimensions();
+        let (logo_w_i32, logo_h_i32) = self.get_logo_dimensions();
         let logo_lines = self.get_logo_lines();
 
-        // 1. Erase the OLD position.
-        //    We use the stored `prev_x` / `prev_y` to know where to overwrite with spaces.
-        //    (Note: You need to keep `prev_x` and `prev_y` in your struct for this to work!)
-        for i in 0..logo_height {
-            queue!(
-                w,
-                cursor::MoveTo(self.prev_x, self.prev_y + i as u16),
-                style::Print(" ".repeat(logo_width as usize))
-            )?;
+        let logo_w = logo_w_i32 as u16;
+        let logo_h = logo_h_i32 as u16;
+
+        // 1. Erase old position safely
+        let erase_str = " ".repeat(logo_w as usize);
+        for i in 0..logo_h {
+            // Clamp to prevent crossterm internal overflow (it does y+1 internally)
+            if let Some(draw_y) = self.prev_y.checked_add(i) {
+                // CRITICAL: Ensure we're within terminal bounds AND below u16::MAX - 1
+                // (crossterm adds 1 internally for 1-indexed terminals)
+                if draw_y < self.max_y.min(65534) {
+                    queue!(
+                        w,
+                        cursor::MoveTo(self.prev_x.min(self.max_x.min(65534)), draw_y),
+                        style::Print(&erase_str)
+                    )?;
+                }
+            }
         }
 
-        // 2. Draw the NEW logo at the current `x` / `y`.
+        // 2. Draw new position safely
         for (i, line) in logo_lines.iter().enumerate() {
-            queue!(
-                w,
-                cursor::MoveTo(self.x, self.y + i as u16),
-                style::SetForegroundColor(self.color),
-                style::Print(line),
-                style::ResetColor
-            )?;
+            if let Some(draw_y) = self.y.checked_add(i as u16) {
+                // CRITICAL: Same bounds check
+                if draw_y < self.max_y.min(65534) {
+                    queue!(
+                        w,
+                        cursor::MoveTo(self.x.min(self.max_x.min(65534)), draw_y),
+                        style::SetForegroundColor(self.color),
+                        style::Print(line),
+                        style::ResetColor
+                    )?;
+                }
+            }
         }
 
-        // 3. Flush everything to the terminal at once.
         w.flush()?;
         Ok(())
     }
-
-    /// Update cached terminal bounds and clamp the logo position.
-    ///
-    /// This should be called after handling a resize event so that the
-    /// bouncer uses the new terminal size for collision detection.
-    pub fn resize(&mut self, w: u16, h: u16) {
-        self.max_x = w.saturating_sub(1);
-        self.max_y = h.saturating_sub(1);
-        self.x = self.x.min(self.max_x);
-        self.y = self.y.min(self.max_y);
-    }
 }
 
+// Implement Default manually since Bouncer::new is not const/simple
 impl Default for Bouncer {
-    /// Construct a default `Bouncer` using `Bouncer::new()`.
     fn default() -> Self {
         Self::new()
     }
 }
 
-/// Get terminal dimensions as `(rows, cols)` with sane minimums.
-///
-/// Returns a fallback of `(24, 80)` if the size cannot be detected.
-#[must_use]
-pub fn get_term_size() -> (i32, i32) {
-    match term_size::dimensions() {
-        Some((width, height)) => {
-            let width = width.max(30);
-            let height = height.max(15);
-            (height as i32, width as i32)
-        }
-        None => (24, 80),
-    }
-}
-
-/// Initialize ncurses and return the main window.
-///
-/// Configures non-blocking input, disables echo, hides the cursor,
-/// and sets up basic color pairs using the default terminal background.
-pub fn ncurses_init() -> Window {
-    let window = initscr();
-
-    window.nodelay(true);
-    noecho();
-    cbreak();
-    curs_set(0);
-
-    if has_colors() {
-        start_color();
-        use_default_colors();
-
-        for i in 0..8 {
-            init_pair(i, i, -1);
-        }
-    }
-
-    window.refresh();
-    window
-}
-
-/// Reinitialize the ncurses window after a terminal resize.
-pub fn resize_window() {
-    endwin();
-    initscr();
-}
-
-/// Restore the terminal to a usable state and terminate the process.
-///
-/// This shows the cursor again, ends ncurses mode, and exits with
-/// status code 0.
-pub fn finish() {
-    curs_set(1);
-    endwin();
-    std::process::exit(0);
-}
+// NOTE: We removed get_term_size, ncurses_init, resize_window, finish.
+// Those tasks are now handled by crossterm directly in main.rs or Bouncer::new().
