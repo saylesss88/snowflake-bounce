@@ -5,7 +5,7 @@ use crossterm::{
     execute,
     terminal::{self, disable_raw_mode, enable_raw_mode},
 };
-use std::io::{stdout, Write};
+use std::io::stdout;
 use std::time::Duration;
 
 use snowflake_bounce::Bouncer;
