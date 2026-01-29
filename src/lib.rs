@@ -58,8 +58,10 @@ impl Bouncer {
 
         // Random start position, safely cast to i32 for math, then back to u16
         // We use slightly smaller bounds to ensure we don't start off-screen
-        let start_x_pos_i32 = rng::<i32>() % (i32::from(max_x) - 50).max(5) + 2;
-        let start_y_i32 = rng::<i32>() % (i32::from(max_y) - 25).max(5) + 2;
+        let start_x_pos_i32 = rng::<i32>().abs() % (i32::from(max_x) - 50).max(5) + 2;
+        let start_y_i32 = rng::<i32>().abs() % (i32::from(max_y) - 25).max(5) + 2;
+        // let start_x_pos_i32 = rng::<i32>() % (i32::from(max_x) - 50).max(5) + 2;
+        // let start_y_i32 = rng::<i32>() % (i32::from(max_y) - 25).max(5) + 2;
 
         let start_x = u16::try_from(start_x_pos_i32).unwrap();
         let start_y = u16::try_from(start_y_i32).unwrap();
@@ -275,6 +277,3 @@ impl Default for Bouncer {
         Self::new()
     }
 }
-
-// NOTE: We removed get_term_size, ncurses_init, resize_window, finish.
-// Those tasks are now handled by crossterm directly in main.rs or Bouncer::new().
