@@ -1,6 +1,6 @@
 [package]
 name = "snowflake-bounce"
-version = "0.2.5"
+version = "0.2.6"
 edition = "2024"
 authors = ["T.Sawyer <saylesss87@proton.me>"]
 description = "A bouncing NixOS snowflake screensaver"
@@ -8,6 +8,7 @@ license = "Apache-2.0"
 repository = "https://github.com/saylesss88/snowflake-bounce"
 readme = "README.md"
 keywords = ["rust", "terminal"]
+categories = ["command-line-utilities"]
 homepage = "https://github.com/saylesss88/snowfall-bounce"
 exclude = [
 	"result",
