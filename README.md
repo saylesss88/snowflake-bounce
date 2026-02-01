@@ -11,6 +11,8 @@ A terminal-based screensaver with old DVD style bouncing snowflake graphic.
 
 - Press `s` to change size of flake
 
+- Press `a` for an unicode Arch Linux Logo
+
 - Press `f` for Easter Egg
 
 - Press `q` to exit

@@ -186,6 +186,7 @@ impl Bouncer {
     }
 
     // Helper: Dimensions are i32 for easy math, but small enough to fit u16
+    #[allow(clippy::match_same_arms)]
     const fn get_logo_dimensions(&self) -> (i32, i32) {
         match self.mode {
             SymbolMode::SnowflakeSmall => (1, 1),
