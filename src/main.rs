@@ -48,6 +48,7 @@ fn main() -> std::io::Result<()> {
                     KeyCode::Char('c') => bouncer.cycle_color(),
                     KeyCode::Char('s') => bouncer.cycle_symbol(),
                     KeyCode::Char('f') => bouncer.set_middle_finger(),
+                    KeyCode::Char('a') => bouncer.set_arch(),
                     _ => {}
                 },
                 Event::Resize(w, h) => {

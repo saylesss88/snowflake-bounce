@@ -27,6 +27,7 @@ pub enum SymbolMode {
     SnowflakeSmall,
     SnowflakeLarge,
     NixOS,
+    Arch,
     MiddleFinger,
 }
 
@@ -87,6 +88,7 @@ impl Bouncer {
             SymbolMode::SnowflakeLarge => SymbolMode::NixOS,
             SymbolMode::NixOS => SymbolMode::SnowflakeSmall,
             SymbolMode::MiddleFinger => SymbolMode::SnowflakeSmall,
+            SymbolMode::Arch => SymbolMode::NixOS,
         };
     }
 
@@ -110,6 +112,9 @@ impl Bouncer {
 
     pub const fn set_middle_finger(&mut self) {
         self.mode = SymbolMode::MiddleFinger;
+    }
+    pub const fn set_arch(&mut self) {
+        self.mode = SymbolMode::Arch;
     }
 
     pub fn update(&mut self) {
@@ -187,6 +192,7 @@ impl Bouncer {
             SymbolMode::SnowflakeLarge => (5, 3),
             SymbolMode::NixOS => (46, 19),
             SymbolMode::MiddleFinger => (2, 1),
+            SymbolMode::Arch => (46, 19),
         }
     }
 
@@ -216,6 +222,27 @@ impl Bouncer {
                 "         .::::      ::::      '::::.         ",
             ],
             SymbolMode::MiddleFinger => vec!["🖕"],
+            SymbolMode::Arch => vec![
+                "                      ▄                       ",
+                "                     ▟█▙                      ",
+                "                    ▟███▙                     ",
+                "                   ▟█████▙                    ",
+                "                  ▟███████▙                   ",
+                "                 ▂▔▀▜██████▙                  ",
+                "                ▟██▅▂▝▜█████▙                 ",
+                "               ▟█████████████▙                ",
+                "              ▟███████████████▙               ",
+                "             ▟█████████████████▙              ",
+                "            ▟███████████████████▙             ",
+                "           ▟█████████▛▀▀▜████████▙            ",
+                "          ▟████████▛      ▜███████▙           ",
+                "         ▟█████████        ████████▙          ",
+                "        ▟██████████        █████▆▅▄▃▂         ",
+                "       ▟██████████▛        ▜█████████▙        ",
+                "      ▟██████▀▀▀              ▀▀██████▙       ",
+                "     ▟███▀▘                       ▝▀███▙      ",
+                "    ▟▛▀                               ▀▜▙     ",
+            ],
         }
     }
 
