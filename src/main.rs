@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use snowflake_bounce::Bouncer;
 
-/// A terminal-based screensaver with bouncing snowflakes
+/// A terminal-based screensaver with bouncing snowflakes & other symbols
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {

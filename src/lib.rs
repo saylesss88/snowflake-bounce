@@ -9,7 +9,7 @@ use rand::{Rng, SeedableRng};
 use std::cell::RefCell;
 use std::io::{self, Write};
 
-// --- RNG Helper (unchanged) ---
+// --- RNG Helper  ---
 thread_local! {
     static RNG: RefCell<SmallRng> = RefCell::new(SmallRng::from_entropy());
 }
@@ -21,7 +21,7 @@ where
     RNG.with(|rng| (*rng).borrow_mut().r#gen::<T>())
 }
 
-// --- Symbol Enums (unchanged) ---
+// --- Symbol Enums ---
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SymbolMode {
     SnowflakeSmall,
@@ -35,11 +35,11 @@ pub enum SymbolMode {
 pub struct Bouncer {
     x: u16,
     y: u16,
-    prev_x: u16, // Added back for clearing
-    prev_y: u16, // Added back for clearing
+    prev_x: u16,
+    prev_y: u16,
     dx: i32,
     dy: i32,
-    color: Color, // Changed from i16 to crossterm::style::Color
+    color: Color,
     max_x: u16,
     max_y: u16,
     pub mode: SymbolMode,
@@ -61,8 +61,6 @@ impl Bouncer {
         // We use slightly smaller bounds to ensure we don't start off-screen
         let start_x_pos_i32 = rng::<i32>().abs() % (i32::from(max_x) - 50).max(5) + 2;
         let start_y_i32 = rng::<i32>().abs() % (i32::from(max_y) - 25).max(5) + 2;
-        // let start_x_pos_i32 = rng::<i32>() % (i32::from(max_x) - 50).max(5) + 2;
-        // let start_y_i32 = rng::<i32>() % (i32::from(max_y) - 25).max(5) + 2;
 
         let start_x = u16::try_from(start_x_pos_i32).unwrap();
         let start_y = u16::try_from(start_y_i32).unwrap();
